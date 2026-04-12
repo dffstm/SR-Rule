@@ -14,7 +14,7 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+      uses: actions/checkout@v4
 
       - name: Set git config
         run: |
@@ -31,8 +31,10 @@ jobs:
         run: |
           mkdir -p output
           cat src/domains.txt \
+            | sed 's/#.*//g' \        # удаляем всё после #
+            | sed '/^#/d' \           # удаляем строки, которые начинаются с #
+            | sed '/^$/d' \           # убираем пустые строки
             | sed -E 's/^domain://g' \
-            | sed '/^$/d' \
             | sed 's/\r//g' \
             | while read dom; do
                 echo "DOMAIN-SUFFIX,$dom,DIRECT"
@@ -41,8 +43,10 @@ jobs:
       - name: Generate Shadowrocket CIDR rules
         run: |
           cat src/ips.txt \
-            | grep -oE '[0-9]{1,3}(\.[0-9]{1,3}){3}(/[0-9]{1,2})?' \
+            | sed 's/#.*//g' \        # удаляем всё после #
+            | sed '/^#/d' \           # строки-комментарии в ноль
             | sed '/^$/d' \
+            | grep -oE '[0-9]{1,3}(\.[0-9]{1,3}){3}(/[0-9]{1,2})?' \
             | while read ip; do
                 echo "IP-CIDR,$ip,DIRECT"
               done > output/shadowrocket_cidr.conf
