@@ -4,12 +4,9 @@ permissions:
   contents: write
 
 on:
+  workflow_dispatch:
   schedule:
     - cron: "0 */12 * * *"
-  workflow_dispatch:
-
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   build:
@@ -19,50 +16,44 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Set git config
         run: |
-          sudo apt update
-          sudo apt install -y curl jq
-
-      - name: Download domain list
-        run: |
-          curl -s https://raw.githubusercontent.com/hydraponique/roscomvpn-geosite/refs/heads/master/data/whitelist -o domains_raw.txt
-
-      - name: Download CIDR list
-        run: |
-          curl -s https://raw.githubusercontent.com/hydraponique/roscomvpn-geoip/refs/heads/master/release/text/whitelist.txt -o cidr_raw.txt
-
-      - name: Clean domain list
-        run: |
-          cat domains_raw.txt \
-            | sed 's/^domain://g' \
-            | sed 's/^domain-set://g' \
-            | sed 's/^domain-suffix://g' \
-            | sed 's/ //g' \
-            | sed '/^$/d' \
-            > domains_cleaned.txt
-
-      - name: Generate domain rule-set
-        run: |
-          cat domains_cleaned.txt \
-            | sed 's/^/DOMAIN-SUFFIX,&,DIRECT/' \
-            > shadowrocket_domains.conf
-
-      - name: Generate CIDR rule-set
-        run: |
-          cat cidr_raw.txt \
-            | sed 's/^/IP-CIDR,&,DIRECT/' \
-            > shadowrocket_cidr.conf
-
-      - name: Commit & Push
-        run: |
-          git config --global user.email "github-actions@github.com"
           git config --global user.name "GitHub Actions"
+          git config --global user.email "github-actions@github.com"
 
-          git add *.conf || true
+      - name: Download source lists
+        run: |
+          mkdir -p src
+          curl -s https://raw.githubusercontent.com/hydraponique/roscomvpn-geosite/refs/heads/master/data/whitelist -o src/domains.txt
+          curl -s https://raw.githubusercontent.com/hydraponique/roscomvpn-geoip/refs/heads/master/release/text/whitelist.txt -o src/ips.txt
 
-          git commit -m "Auto-update rules" || echo "No changes to commit"
+      - name: Generate Shadowrocket domain rules
+        run: |
+          mkdir -p output
+          cat src/domains.txt \
+            | sed -E 's/^domain://g' \
+            | sed '/^$/d' \
+            | sed 's/\r//g' \
+            | while read dom; do
+                echo "DOMAIN-SUFFIX,$dom,DIRECT"
+              done > output/shadowrocket_domains.conf
 
-          # безопасный пуш — не падает при конфликте
-          git pull --rebase || true
-          git push || true
+      - name: Generate Shadowrocket CIDR rules
+        run: |
+          cat src/ips.txt \
+            | grep -oE '[0-9]{1,3}(\.[0-9]{1,3}){3}(/[0-9]{1,2})?' \
+            | sed '/^$/d' \
+            | while read ip; do
+                echo "IP-CIDR,$ip,DIRECT"
+              done > output/shadowrocket_cidr.conf
+
+      - name: Copy to repo root
+        run: |
+          cp output/shadowrocket_domains.conf .
+          cp output/shadowrocket_cidr.conf .
+
+      - name: Commit and Push
+        run: |
+          git add shadowrocket_domains.conf shadowrocket_cidr.conf || true
+          git commit -m "Auto-update rules" || true
+          git push origin main || true
