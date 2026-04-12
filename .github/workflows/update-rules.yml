@@ -1,0 +1,57 @@
+name: Update Shadowrocket Rules
+
+on:
+  schedule:
+    - cron: "0 */12 * * *"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y curl jq
+
+      - name: Download domain list
+        run: |
+          curl -s https://raw.githubusercontent.com/hydraponique/roscomvpn-geosite/refs/heads/master/data/whitelist -o domains_raw.txt
+
+      - name: Download CIDR list
+        run: |
+          curl -s https://raw.githubusercontent.com/hydraponique/roscomvpn-geoip/refs/heads/master/release/text/whitelist.txt -o cidr_raw.txt
+
+      - name: Clean domain list (remove 'domain:')
+        run: |
+          cat domains_raw.txt \
+            | sed 's/^domain://g' \
+            | sed 's/^domain-set://g' \
+            | sed 's/^domain-suffix://g' \
+            > domains_cleaned.txt
+
+      - name: Process domain rules
+        run: |
+          cat domains_cleaned.txt \
+            | sed 's/^/DOMAIN-SUFFIX,&,DIRECT/' \
+            > shadowrocket_domains.conf
+
+      - name: Process CIDR rules
+        run: |
+          cat cidr_raw.txt \
+            | sed 's/^/IP-CIDR,&,DIRECT/' \
+            > shadowrocket_cidr.conf
+
+      - name: Commit & Push
+        run: |
+          git config --global user.email "github-actions@github.com"
+          git config --global user.name "GitHub Actions"
+
+          git add shadowrocket_domains.conf shadowrocket_cidr.conf
+          git commit -m "Auto-update rules" || echo "No changes"
+
+          git push
