@@ -1,5 +1,8 @@
 name: Update Shadowrocket Rules
 
+permissions:
+  contents: write
+
 on:
   schedule:
     - cron: "0 */12 * * *"
