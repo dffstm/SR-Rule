@@ -25,7 +25,7 @@ jobs:
         run: |
           mkdir -p src
           curl -s https://raw.githubusercontent.com/hydraponique/roscomvpn-geosite/refs/heads/master/data/whitelist -o src/domains.txt
-          curl -s https://raw.githubusercontent.com/hydraponique/roscomvpn-geoip/refs/heads/master/release/text/whitelist.txt -o src/ips.txt
+          curl -s https://raw.githubusercontent.com/hydraponique/roscomvpn-geoip/refs/heads/master/CUSTOM-WHITELIST.txt -o src/ips.txt
 
       - name: Generate Shadowrocket domain rules
         run: |
