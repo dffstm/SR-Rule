@@ -5,13 +5,16 @@ on:
     - cron: "0 */12 * * *"
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install dependencies
         run: |
@@ -26,21 +29,23 @@ jobs:
         run: |
           curl -s https://raw.githubusercontent.com/hydraponique/roscomvpn-geoip/refs/heads/master/release/text/whitelist.txt -o cidr_raw.txt
 
-      - name: Clean domain list (remove 'domain:')
+      - name: Clean domain list
         run: |
           cat domains_raw.txt \
             | sed 's/^domain://g' \
             | sed 's/^domain-set://g' \
             | sed 's/^domain-suffix://g' \
+            | sed 's/ //g' \
+            | sed '/^$/d' \
             > domains_cleaned.txt
 
-      - name: Process domain rules
+      - name: Generate domain rule-set
         run: |
           cat domains_cleaned.txt \
             | sed 's/^/DOMAIN-SUFFIX,&,DIRECT/' \
             > shadowrocket_domains.conf
 
-      - name: Process CIDR rules
+      - name: Generate CIDR rule-set
         run: |
           cat cidr_raw.txt \
             | sed 's/^/IP-CIDR,&,DIRECT/' \
@@ -51,7 +56,10 @@ jobs:
           git config --global user.email "github-actions@github.com"
           git config --global user.name "GitHub Actions"
 
-          git add shadowrocket_domains.conf shadowrocket_cidr.conf
-          git commit -m "Auto-update rules" || echo "No changes"
+          git add *.conf || true
 
-          git push
+          git commit -m "Auto-update rules" || echo "No changes to commit"
+
+          # безопасный пуш — не падает при конфликте
+          git pull --rebase || true
+          git push || true
